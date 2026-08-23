@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  STUDENT
+  INSTRUCTOR
+  ADMIN
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CourseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+}
+
+model User {
+  id            String         @id @default(uuid()) @db.Uuid
+  email         String         @unique @db.Text
+  passwordHash  String         @map("password_hash") @db.Text
+  fullName      String         @map("full_name") @db.Text
+  role          UserRole       @default(STUDENT)
+  avatarUrl     String?        @map("avatar_url") @db.Text
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?      @map("deleted_at") @db.Timestamptz(6)
+
+  courses       Course[]
+  enrollments   Enrollment[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model Course {
+  id           String       @id @default(uuid()) @db.Uuid
+  title        String       @db.Text
+  slug         String       @unique @db.Text
+  summary      String       @db.Text
+  description  String       @db.Text
+  thumbnailUrl String?      @map("thumbnail_url") @db.Text
+  instructorId String       @map("instructor_id") @db.Uuid
+  status       CourseStatus @default(DRAFT)
+  level        CourseLevel
+  publishedAt  DateTime?    @map("published_at") @db.Timestamptz(6)
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime?    @map("deleted_at") @db.Timestamptz(6)
+
+  instructor   User         @relation(fields: [instructorId], references: [id])
+  modules      Module[]
+  enrollments  Enrollment[]
+
+  @@index([instructorId])
+  @@index([status])
+  @@map("courses")
+}
+
+model Module {
+  id        String   @id @default(uuid()) @db.Uuid
+  courseId  String   @map("course_id") @db.Uuid
+  title     String   @db.Text
+  position  Int
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons   Lesson[]
+
+  @@unique([courseId, position])
+  @@map("modules")
+}
+
+model Lesson {
+  id              String   @id @default(uuid()) @db.Uuid
+  moduleId        String   @map("module_id") @db.Uuid
+  title           String   @db.Text
+  contentMd       String   @map("content_md") @db.Text
+  videoUrl        String?  @map("video_url") @db.Text
+  durationMinutes Int      @map("duration_minutes")
+  position        Int
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  module          Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([moduleId, position])
+  @@map("lessons")
+}
+
+model Enrollment {
+  id          String           @id @default(uuid()) @db.Uuid
+  courseId    String           @map("course_id") @db.Uuid
+  studentId   String           @map("student_id") @db.Uuid
+  status      EnrollmentStatus @default(ACTIVE)
+  enrolledAt  DateTime         @default(now()) @map("enrolled_at") @db.Timestamptz(6)
+  completedAt DateTime?        @map("completed_at") @db.Timestamptz(6)
+  droppedAt   DateTime?        @map("dropped_at") @db.Timestamptz(6)
+
+  course      Course           @relation(fields: [courseId], references: [id])
+  student     User             @relation(fields: [studentId], references: [id])
+
+  @@unique([courseId, studentId])
+  @@map("enrollments")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  tokenHash String   @map("token_hash") @db.Text
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
