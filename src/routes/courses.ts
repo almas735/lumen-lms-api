@@ -199,6 +199,15 @@ router.post("/courses/:id/publish", requireAuth, async (req: AuthedRequest, res,
       missing.push({ field: "description", message: "Description is required" });
     }
 
+    const moduleCount = await prisma.module.count({ where: { courseId: course.id } });
+    if (moduleCount === 0) {
+      missing.push({ field: "modules", message: "Add at least one module with a lesson before publishing" });
+    } else {
+      const lessonCount = await prisma.lesson.count({ where: { module: { courseId: course.id } } });
+      if (lessonCount === 0) {
+        missing.push({ field: "modules", message: "Add at least one lesson before publishing" });
+      }
+    }
 
     if (missing.length) {
       throw new AppError(400, "INCOMPLETE_COURSE", "Course is missing required fields before it can publish", missing);
