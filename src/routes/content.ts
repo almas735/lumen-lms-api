@@ -3,10 +3,14 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { requireAuth, AuthedRequest } from "../middleware/auth";
+import { isValidUuid } from "../lib/validation";
 
 const router = Router();
 
 async function getOwnedCourseForContent(courseId: string, user: { id: string; role: string }) {
+  if (!isValidUuid(courseId)) {
+    throw new AppError(400, "INVALID_ID", "That course ID is not valid");
+  }
   const course = await prisma.course.findFirst({ where: { id: courseId, deletedAt: null } });
   if (!course) {
     throw new AppError(404, "NOT_FOUND", "Course not found");
@@ -18,6 +22,9 @@ async function getOwnedCourseForContent(courseId: string, user: { id: string; ro
 }
 
 async function getOwnedModule(moduleId: string, user: { id: string; role: string }) {
+  if (!isValidUuid(moduleId)) {
+    throw new AppError(400, "INVALID_ID", "That module ID is not valid");
+  }
   const mod = await prisma.module.findUnique({ where: { id: moduleId }, include: { course: true } });
   if (!mod) {
     throw new AppError(404, "NOT_FOUND", "Module not found");
@@ -28,42 +35,10 @@ async function getOwnedModule(moduleId: string, user: { id: string; role: string
   return mod;
 }
 
-async function getOwnedLesson(lessonId: string, user: { id: string; role: string }) {
-  const lesson = await prisma.lesson.findUnique({
-    where: { id: lessonId },
-    include: { module: { include: { course: true } } },
-  });
-  if (!lesson) {
-    throw new AppError(404, "NOT_FOUND", "Lesson not found");
-  }
-  if (lesson.module.course.instructorId !== user.id && user.role !== "ADMIN") {
-    throw new AppError(403, "FORBIDDEN", "You do not have permission to do this");
-  }
-  return lesson;
-}
-
-router.get("/courses/:id/outline", requireAuth, async (req: AuthedRequest, res, next) => {
-  try {
-    const course = await getOwnedCourseForContent(String(req.params.id), req.user!);
-    const modules = await prisma.module.findMany({
-      where: { courseId: course.id },
-      orderBy: { position: "asc" },
-      include: { lessons: { orderBy: { position: "asc" } } },
-    });
-    res.json({ course: course, modules: modules });
-  } catch (err) {
-    next(err);
-  }
-});
-
-const moduleCreateSchema = z.object({
-  title: z.string().min(1, { error: "Title is required" }),
-});
-
 router.post("/courses/:courseId/modules", requireAuth, async (req: AuthedRequest, res, next) => {
   try {
     const course = await getOwnedCourseForContent(String(req.params.courseId), req.user!);
-    const parsed = moduleCreateSchema.safeParse(req.body);
+    const parsed = z.object({ title: z.string().min(1, { error: "Title is required" }) }).safeParse(req.body);
     if (!parsed.success) {
       const details = parsed.error.issues.map(function (i) {
         return { field: i.path.join("."), message: i.message };
@@ -83,7 +58,7 @@ router.post("/courses/:courseId/modules", requireAuth, async (req: AuthedRequest
 router.patch("/modules/:id", requireAuth, async (req: AuthedRequest, res, next) => {
   try {
     const mod = await getOwnedModule(String(req.params.id), req.user!);
-    const parsed = moduleCreateSchema.safeParse(req.body);
+    const parsed = z.object({ title: z.string().min(1, { error: "Title is required" }) }).safeParse(req.body);
     if (!parsed.success) {
       const details = parsed.error.issues.map(function (i) {
         return { field: i.path.join("."), message: i.message };
@@ -163,8 +138,49 @@ router.post("/modules/:moduleId/lessons", requireAuth, async (req: AuthedRequest
 
 router.get("/lessons/:id", requireAuth, async (req: AuthedRequest, res, next) => {
   try {
-    const lesson = await getOwnedLesson(String(req.params.id), req.user!);
-    res.json({ lesson: lesson });
+    const lessonId = String(req.params.id);
+    if (!isValidUuid(lessonId)) {
+      throw new AppError(400, "INVALID_ID", "That lesson ID is not valid");
+    }
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      include: { module: { include: { course: true } } },
+    });
+    if (!lesson) {
+      throw new AppError(404, "NOT_FOUND", "Lesson not found");
+    }
+
+    const course = lesson.module.course;
+    const isOwner = course.instructorId === req.user!.id || req.user!.role === "ADMIN";
+
+    if (isOwner) {
+      res.json({ lesson: lesson });
+      return;
+    }
+
+    const enrollment = await prisma.enrollment.findFirst({
+      where: { courseId: course.id, studentId: req.user!.id, status: { in: ["ACTIVE", "COMPLETED"] } },
+    });
+    if (!enrollment) {
+      throw new AppError(403, "FORBIDDEN", "You must be enrolled to view this lesson");
+    }
+
+    let progress = await prisma.lessonProgress.findUnique({
+      where: { enrollmentId_lessonId: { enrollmentId: enrollment.id, lessonId: lesson.id } },
+    });
+    if (!progress) {
+      progress = await prisma.lessonProgress.create({
+        data: { enrollmentId: enrollment.id, lessonId: lesson.id, status: "IN_PROGRESS", lastViewedAt: new Date() },
+      });
+    } else {
+      const newStatus = progress.status === "NOT_STARTED" ? "IN_PROGRESS" : progress.status;
+      progress = await prisma.lessonProgress.update({
+        where: { id: progress.id },
+        data: { lastViewedAt: new Date(), status: newStatus },
+      });
+    }
+
+    res.json({ lesson: lesson, progress: { status: progress.status } });
   } catch (err) {
     next(err);
   }
@@ -174,7 +190,17 @@ const lessonUpdateSchema = lessonCreateSchema.partial();
 
 router.patch("/lessons/:id", requireAuth, async (req: AuthedRequest, res, next) => {
   try {
-    const lesson = await getOwnedLesson(String(req.params.id), req.user!);
+    const lessonId = String(req.params.id);
+    if (!isValidUuid(lessonId)) {
+      throw new AppError(400, "INVALID_ID", "That lesson ID is not valid");
+    }
+    const lesson = await prisma.lesson.findUnique({ where: { id: lessonId }, include: { module: { include: { course: true } } } });
+    if (!lesson) {
+      throw new AppError(404, "NOT_FOUND", "Lesson not found");
+    }
+    if (lesson.module.course.instructorId !== req.user!.id && req.user!.role !== "ADMIN") {
+      throw new AppError(403, "FORBIDDEN", "You do not have permission to do this");
+    }
     const parsed = lessonUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
       const details = parsed.error.issues.map(function (i) {
@@ -192,7 +218,17 @@ router.patch("/lessons/:id", requireAuth, async (req: AuthedRequest, res, next) 
 
 router.delete("/lessons/:id", requireAuth, async (req: AuthedRequest, res, next) => {
   try {
-    const lesson = await getOwnedLesson(String(req.params.id), req.user!);
+    const lessonId = String(req.params.id);
+    if (!isValidUuid(lessonId)) {
+      throw new AppError(400, "INVALID_ID", "That lesson ID is not valid");
+    }
+    const lesson = await prisma.lesson.findUnique({ where: { id: lessonId }, include: { module: { include: { course: true } } } });
+    if (!lesson) {
+      throw new AppError(404, "NOT_FOUND", "Lesson not found");
+    }
+    if (lesson.module.course.instructorId !== req.user!.id && req.user!.role !== "ADMIN") {
+      throw new AppError(403, "FORBIDDEN", "You do not have permission to do this");
+    }
     await prisma.lesson.delete({ where: { id: lesson.id } });
     res.status(204).send();
   } catch (err) {

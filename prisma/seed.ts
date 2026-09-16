@@ -8,6 +8,8 @@ async function main() {
 
   console.log("Wiping existing data...");
   await prisma.refreshToken.deleteMany();
+  await prisma.lesson.deleteMany();
+  await prisma.module.deleteMany();
   await prisma.course.deleteMany();
   await prisma.user.deleteMany();
 
@@ -55,7 +57,7 @@ async function main() {
     const title = titles[i];
     const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
     const status = i < 14 ? "PUBLISHED" : i < 18 ? "DRAFT" : "ARCHIVED";
-    await prisma.course.create({
+    const course = await prisma.course.create({
       data: {
         title: title,
         slug: slug,
@@ -68,9 +70,30 @@ async function main() {
         publishedAt: status === "PUBLISHED" ? new Date() : null,
       },
     });
+
+    if (i < 3) {
+      for (let m = 1; m <= 2; m++) {
+        const moduleTitle = "Module " + m + ": " + (m === 1 ? "Getting Started" : "Going Deeper");
+        const mod = await prisma.module.create({
+          data: { courseId: course.id, title: moduleTitle, position: m },
+        });
+        for (let l = 1; l <= 2; l++) {
+          await prisma.lesson.create({
+            data: {
+              moduleId: mod.id,
+              title: "Lesson " + l,
+              contentMd: "## Lesson " + l + "\n\nThis is real seeded lesson content for **" + title + "**.\n\n- Point one\n- Point two\n\nEnjoy the course!",
+              videoUrl: null,
+              durationMinutes: 8,
+              position: l,
+            },
+          });
+        }
+      }
+    }
   }
 
-  console.log("Seeded:", admin.email, "+ 3 instructors + 10 students + 20 courses");
+  console.log("Seeded:", admin.email, "+ 3 instructors + 10 students + 20 courses (3 with real content)");
 }
 
 main().catch(function (e) { console.error(e); process.exit(1); }).finally(function () { return prisma.$disconnect(); });

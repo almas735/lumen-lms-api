@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth";
 import { verifyAccessToken } from "../lib/tokens";
+import { isValidUuid } from "../lib/validation";
 
 const router = Router();
 
@@ -23,6 +24,9 @@ async function generateUniqueSlug(title: string): Promise<string> {
 }
 
 async function getOwnedCourse(courseId: string, user: { id: string; role: string }) {
+  if (!isValidUuid(courseId)) {
+    throw new AppError(400, "INVALID_ID", "That course ID is not valid");
+  }
   const course = await prisma.course.findFirst({ where: { id: courseId, deletedAt: null } });
   if (!course) {
     throw new AppError(404, "NOT_FOUND", "Course not found");
@@ -83,8 +87,26 @@ router.get("/instructor/courses", requireAuth, requireRole("INSTRUCTOR"), async 
     if (statusFilter && ["DRAFT", "PUBLISHED", "ARCHIVED"].includes(statusFilter)) {
       where.status = statusFilter;
     }
-    const courses = await prisma.course.findMany({ where: where, orderBy: { updatedAt: "desc" } });
-    res.json({ data: courses });
+    const courses = await prisma.course.findMany({
+      where: where,
+      orderBy: { updatedAt: "desc" },
+      include: {
+        _count: { select: { modules: true } },
+        modules: { select: { _count: { select: { lessons: true } } } },
+      },
+    });
+    const data = courses.map(function (c: any) {
+      const lessonCount = c.modules.reduce(function (sum: number, m: any) { return sum + m._count.lessons; }, 0);
+      return {
+        id: c.id,
+        title: c.title,
+        status: c.status,
+        level: c.level,
+        moduleCount: c._count.modules,
+        lessonCount: lessonCount,
+      };
+    });
+    res.json({ data: data });
   } catch (err) {
     next(err);
   }

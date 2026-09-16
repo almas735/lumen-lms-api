@@ -8,6 +8,7 @@ import authRouter from "./routes/auth";
 import courseRouter from "./routes/courses";
 import adminRouter from "./routes/admin";
 import contentRouter from "./routes/content";
+import progressRouter from "./routes/progress";
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.use("/api/auth", authRouter);
 app.use("/api", courseRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api", contentRouter);
+app.use("/api", progressRouter);
 
 app.use(errorHandler);
 
