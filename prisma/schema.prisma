@@ -106,6 +106,7 @@ model Lesson {
 
   module          Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   progress        LessonProgress[]
+  quiz            Quiz?
 
   @@unique([moduleId, position])
   @@map("lessons")
@@ -123,6 +124,7 @@ model Enrollment {
   course         Course           @relation(fields: [courseId], references: [id])
   student        User             @relation(fields: [studentId], references: [id])
   lessonProgress LessonProgress[]
+  quizAttempts   QuizAttempt[]
 
   @@unique([courseId, studentId])
   @@map("enrollments")
@@ -142,6 +144,81 @@ model LessonProgress {
   @@unique([enrollmentId, lessonId])
   @@index([enrollmentId, status])
   @@map("lesson_progress")
+}
+
+model Quiz {
+  id                   String   @id @default(uuid()) @db.Uuid
+  lessonId             String   @unique @map("lesson_id") @db.Uuid
+  title                String   @db.Text
+  passingScorePercent  Int      @default(70) @map("passing_score_percent")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  lesson               Lesson          @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions            Question[]
+  attempts             QuizAttempt[]
+
+  @@map("quizzes")
+}
+
+model Question {
+  id        String   @id @default(uuid()) @db.Uuid
+  quizId    String   @map("quiz_id") @db.Uuid
+  text      String   @db.Text
+  position  Int
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  quiz      Quiz           @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  options   AnswerOption[]
+  attemptAnswers AttemptAnswer[]
+
+  @@unique([quizId, position])
+  @@map("questions")
+}
+
+model AnswerOption {
+  id          String   @id @default(uuid()) @db.Uuid
+  questionId  String   @map("question_id") @db.Uuid
+  text        String   @db.Text
+  isCorrect   Boolean  @default(false) @map("is_correct")
+  explanation String?  @db.Text
+  position    Int
+
+  question     Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  attemptAnswers AttemptAnswer[]
+
+  @@unique([questionId, position])
+  @@map("answer_options")
+}
+
+model QuizAttempt {
+  id           String   @id @default(uuid()) @db.Uuid
+  quizId       String   @map("quiz_id") @db.Uuid
+  enrollmentId String   @map("enrollment_id") @db.Uuid
+  scorePercent Int      @map("score_percent")
+  passed       Boolean
+  submittedAt  DateTime @default(now()) @map("submitted_at") @db.Timestamptz(6)
+
+  quiz         Quiz        @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  enrollment   Enrollment  @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  answers      AttemptAnswer[]
+
+  @@map("quiz_attempts")
+}
+
+model AttemptAnswer {
+  id               String  @id @default(uuid()) @db.Uuid
+  attemptId        String  @map("attempt_id") @db.Uuid
+  questionId       String  @map("question_id") @db.Uuid
+  selectedOptionId String  @map("selected_option_id") @db.Uuid
+  isCorrect        Boolean @map("is_correct")
+
+  attempt         QuizAttempt   @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question        Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOption  AnswerOption  @relation(fields: [selectedOptionId], references: [id])
+
+  @@map("attempt_answers")
 }
 
 model RefreshToken {

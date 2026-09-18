@@ -192,6 +192,11 @@ router.post("/lessons/:id/progress", requireAuth, requireRole("STUDENT"), async 
       throw new AppError(403, "FORBIDDEN", "You must be enrolled to update progress on this lesson");
     }
 
+    const existingQuiz = await prisma.quiz.findUnique({ where: { lessonId: lesson.id } });
+    if (existingQuiz) {
+      throw new AppError(400, "QUIZ_REQUIRED", "This lesson is completed automatically by passing its quiz, not marked manually");
+    }
+
     const newStatus = parsed.data.completed ? "COMPLETED" : "IN_PROGRESS";
     const progress = await prisma.lessonProgress.upsert({
       where: { enrollmentId_lessonId: { enrollmentId: enrollment.id, lessonId: lesson.id } },

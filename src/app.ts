@@ -9,6 +9,7 @@ import courseRouter from "./routes/courses";
 import adminRouter from "./routes/admin";
 import contentRouter from "./routes/content";
 import progressRouter from "./routes/progress";
+import quizRouter from "./routes/quiz";
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.use("/api", courseRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api", contentRouter);
 app.use("/api", progressRouter);
+app.use("/api", quizRouter);
 
 app.use(errorHandler);
 
