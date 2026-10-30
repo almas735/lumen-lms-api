@@ -145,7 +145,8 @@ router.post("/quizzes/:quizId/attempts", requireAuth, requireRole("STUDENT"), as
     if (!enrollment) throw new AppError(403, "FORBIDDEN", "You must be enrolled to take this quiz");
 
     let correctCount = 0;
-    const gradedAnswers = parsed.data.answers.map(function (a) {
+    const uniqueAnswers = parsed.data.answers.filter(function (a, i, arr) { return arr.findIndex(function (b) { return b.questionId === a.questionId; }) === i; });
+    const gradedAnswers = uniqueAnswers.map(function (a) {
       const question = quiz.questions.find(function (q) { return q.id === a.questionId; });
       const option = question ? question.options.find(function (o) { return o.id === a.selectedOptionId; }) : undefined;
       const isCorrect = option ? option.isCorrect : false;

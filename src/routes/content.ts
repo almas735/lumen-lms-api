@@ -92,7 +92,7 @@ router.put("/courses/:courseId/modules/order", requireAuth, async (req: AuthedRe
       throw new AppError(400, "VALIDATION_ERROR", "orderedIds is required");
     }
     const updates = parsed.data.orderedIds.map(function (id, index) {
-      return prisma.module.update({ where: { id: id }, data: { position: index + 1 } });
+      return prisma.module.update({ where: { id: id, courseId: course.id }, data: { position: index + 1 } });
     });
     await prisma.$transaction(updates);
     const modules = await prisma.module.findMany({ where: { courseId: course.id }, orderBy: { position: "asc" } });
@@ -244,7 +244,7 @@ router.put("/modules/:moduleId/lessons/order", requireAuth, async (req: AuthedRe
       throw new AppError(400, "VALIDATION_ERROR", "orderedIds is required");
     }
     const updates = parsed.data.orderedIds.map(function (id, index) {
-      return prisma.lesson.update({ where: { id: id }, data: { position: index + 1 } });
+      return prisma.lesson.update({ where: { id: id, moduleId: mod.id }, data: { position: index + 1 } });
     });
     await prisma.$transaction(updates);
     const lessons = await prisma.lesson.findMany({ where: { moduleId: mod.id }, orderBy: { position: "asc" } });
