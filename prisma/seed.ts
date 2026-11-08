@@ -7,6 +7,8 @@ async function main() {
   }
 
   console.log("Wiping existing data...");
+  await prisma.quizAttempt.deleteMany();
+  await prisma.enrollment.deleteMany();
   await prisma.refreshToken.deleteMany();
   await prisma.lesson.deleteMany();
   await prisma.module.deleteMany();
