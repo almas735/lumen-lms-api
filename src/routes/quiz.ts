@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth";
 import { isValidUuid } from "../lib/validation";
+import { notifyQuizPassed, notifyCourseCompleted } from "../lib/notify";
 
 const router = Router();
 
@@ -179,11 +180,15 @@ router.post("/quizzes/:quizId/attempts", requireAuth, requireRole("STUDENT"), as
 
     let courseCompleted = false;
     if (passed) {
+      await notifyQuizPassed(req.user!.id, quiz.title, quiz.lesson.module.courseId, quiz.lessonId);
+    }
+    if (passed) {
       const totalLessons = await prisma.lesson.count({ where: { module: { courseId: quiz.lesson.module.courseId } } });
       const completedCount = await prisma.lessonProgress.count({ where: { enrollmentId: enrollment.id, status: "COMPLETED" } });
       if (totalLessons > 0 && completedCount === totalLessons) {
         await prisma.enrollment.update({ where: { id: enrollment.id }, data: { status: "COMPLETED", completedAt: new Date() } });
         courseCompleted = true;
+        await notifyCourseCompleted(req.user!.id, quiz.lesson.module.courseId);
       }
     }
 

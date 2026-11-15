@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { requireAuth, AuthedRequest } from "../middleware/auth";
 import { isValidUuid } from "../lib/validation";
+import { notifyNewLesson } from "../lib/notify";
 
 const router = Router();
 
@@ -130,6 +131,7 @@ router.post("/modules/:moduleId/lessons", requireAuth, async (req: AuthedRequest
         position: count + 1,
       },
     });
+    await notifyNewLesson(mod.courseId, lesson.id, lesson.title);
     res.status(201).json({ lesson: lesson });
   } catch (err) {
     next(err);
