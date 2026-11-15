@@ -50,6 +50,7 @@ model User {
   courses       Course[]
   enrollments   Enrollment[]
   refreshTokens RefreshToken[]
+  notifications Notification[]
 
   @@map("users")
 }
@@ -232,4 +233,28 @@ model RefreshToken {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("refresh_tokens")
+}
+
+enum NotificationType {
+  ENROLLMENT_CONFIRMED
+  QUIZ_PASSED
+  COURSE_COMPLETED
+  NEW_LESSON
+  NEW_STUDENT
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  type      NotificationType
+  message   String           @db.Text
+  link      String?          @db.Text
+  readAt    DateTime?        @map("read_at") @db.Timestamptz(6)
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
 }
