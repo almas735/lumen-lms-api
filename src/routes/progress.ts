@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth";
 import { isValidUuid } from "../lib/validation";
+import { notifyEnrollment, notifyCourseCompleted } from "../lib/notify";
 
 const router = Router();
 
@@ -33,6 +34,7 @@ router.post("/courses/:id/enroll", requireAuth, requireRole("STUDENT"), async (r
         where: { id: existing.id },
         data: { status: "ACTIVE", droppedAt: null, completedAt: null },
       });
+      await notifyEnrollment(course, req.user!.id);
       res.status(200).json({ enrollment: reactivated });
       return;
     }
@@ -50,6 +52,7 @@ router.post("/courses/:id/enroll", requireAuth, requireRole("STUDENT"), async (r
       });
     }
 
+    await notifyEnrollment(course, req.user!.id);
     res.status(201).json({ enrollment: enrollment });
   } catch (err) {
     next(err);
@@ -225,6 +228,7 @@ router.post("/lessons/:id/progress", requireAuth, requireRole("STUDENT"), async 
         data: { status: "COMPLETED", completedAt: new Date() },
       });
       courseCompleted = true;
+      await notifyCourseCompleted(req.user!.id, lesson.module.courseId);
     } else if (!parsed.data.completed && enrollment.status === "COMPLETED") {
       await prisma.enrollment.update({
         where: { id: enrollment.id },
