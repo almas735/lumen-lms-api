@@ -11,6 +11,7 @@ import contentRouter from "./routes/content";
 import progressRouter from "./routes/progress";
 import quizRouter from "./routes/quiz";
 import notificationRouter from "./routes/notifications";
+import dashboardRouter from "./routes/dashboard";
 
 dotenv.config();
 
@@ -33,6 +34,7 @@ app.use("/api", contentRouter);
 app.use("/api", progressRouter);
 app.use("/api", quizRouter);
 app.use("/api", notificationRouter);
+app.use("/api", dashboardRouter);
 
 app.use(errorHandler);
 
