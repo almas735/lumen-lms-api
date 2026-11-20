@@ -14,5 +14,11 @@ export default defineConfig({
     setupFiles: ["./test/setup.ts"],
     include: ["src/**/*.test.ts", "test/**/*.test.ts"],
     fileParallelism: false,
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.ts"],
+      exclude: ["src/**/*.test.ts", "src/index.ts"],
+      reporter: ["text-summary", "text"],
+    },
   },
 });
