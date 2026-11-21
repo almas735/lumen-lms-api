@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { requireAuth, AuthedRequest } from "../middleware/auth";
 import { isValidUuid } from "../lib/validation";
+import { canManage } from "../lib/permissions";
 import { notifyNewLesson } from "../lib/notify";
 
 const router = Router();
@@ -16,7 +17,7 @@ async function getOwnedCourseForContent(courseId: string, user: { id: string; ro
   if (!course) {
     throw new AppError(404, "NOT_FOUND", "Course not found");
   }
-  if (course.instructorId !== user.id && user.role !== "ADMIN") {
+  if (!canManage(user, course.instructorId)) {
     throw new AppError(403, "FORBIDDEN", "You do not have permission to do this");
   }
   return course;
@@ -30,7 +31,7 @@ async function getOwnedModule(moduleId: string, user: { id: string; role: string
   if (!mod) {
     throw new AppError(404, "NOT_FOUND", "Module not found");
   }
-  if (mod.course.instructorId !== user.id && user.role !== "ADMIN") {
+  if (!canManage(user, mod.course.instructorId)) {
     throw new AppError(403, "FORBIDDEN", "You do not have permission to do this");
   }
   return mod;
@@ -153,7 +154,7 @@ router.get("/lessons/:id", requireAuth, async (req: AuthedRequest, res, next) =>
     }
 
     const course = lesson.module.course;
-    const isOwner = course.instructorId === req.user!.id || req.user!.role === "ADMIN";
+    const isOwner = canManage(req.user!, course.instructorId);
 
     if (isOwner) {
       res.json({ lesson: lesson });
@@ -200,7 +201,7 @@ router.patch("/lessons/:id", requireAuth, async (req: AuthedRequest, res, next) 
     if (!lesson) {
       throw new AppError(404, "NOT_FOUND", "Lesson not found");
     }
-    if (lesson.module.course.instructorId !== req.user!.id && req.user!.role !== "ADMIN") {
+    if (!canManage(req.user!, lesson.module.course.instructorId)) {
       throw new AppError(403, "FORBIDDEN", "You do not have permission to do this");
     }
     const parsed = lessonUpdateSchema.safeParse(req.body);
@@ -228,7 +229,7 @@ router.delete("/lessons/:id", requireAuth, async (req: AuthedRequest, res, next)
     if (!lesson) {
       throw new AppError(404, "NOT_FOUND", "Lesson not found");
     }
-    if (lesson.module.course.instructorId !== req.user!.id && req.user!.role !== "ADMIN") {
+    if (!canManage(req.user!, lesson.module.course.instructorId)) {
       throw new AppError(403, "FORBIDDEN", "You do not have permission to do this");
     }
     await prisma.lesson.delete({ where: { id: lesson.id } });

@@ -4,6 +4,8 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth";
 import { isValidUuid } from "../lib/validation";
+import { canManage } from "../lib/permissions";
+import { gradeAnswers } from "../lib/grading";
 import { notifyQuizPassed, notifyCourseCompleted } from "../lib/notify";
 
 const router = Router();
@@ -27,7 +29,7 @@ async function getOwnedLessonForQuiz(lessonId: string, user: { id: string; role:
   if (!isValidUuid(lessonId)) throw new AppError(400, "INVALID_ID", "That lesson ID is not valid");
   const lesson = await prisma.lesson.findUnique({ where: { id: lessonId }, include: { module: { include: { course: true } } } });
   if (!lesson) throw new AppError(404, "NOT_FOUND", "Lesson not found");
-  if (lesson.module.course.instructorId !== user.id && user.role !== "ADMIN") {
+  if (!canManage(user, lesson.module.course.instructorId)) {
     throw new AppError(403, "FORBIDDEN", "You do not have permission to do this");
   }
   return lesson;
@@ -87,7 +89,7 @@ router.get("/lessons/:lessonId/quiz", requireAuth, async (req: AuthedRequest, re
     const lesson = await prisma.lesson.findUnique({ where: { id: lessonId }, include: { module: { include: { course: true } } } });
     if (!lesson) throw new AppError(404, "NOT_FOUND", "Lesson not found");
     const course = lesson.module.course;
-    const isOwner = course.instructorId === req.user!.id || req.user!.role === "ADMIN";
+    const isOwner = canManage(req.user!, course.instructorId);
 
     const quiz = await prisma.quiz.findUnique({
       where: { lessonId: lesson.id },
@@ -145,19 +147,7 @@ router.post("/quizzes/:quizId/attempts", requireAuth, requireRole("STUDENT"), as
     });
     if (!enrollment) throw new AppError(403, "FORBIDDEN", "You must be enrolled to take this quiz");
 
-    let correctCount = 0;
-    const uniqueAnswers = parsed.data.answers.filter(function (a, i, arr) { return arr.findIndex(function (b) { return b.questionId === a.questionId; }) === i; });
-    const gradedAnswers = uniqueAnswers.map(function (a) {
-      const question = quiz.questions.find(function (q) { return q.id === a.questionId; });
-      const option = question ? question.options.find(function (o) { return o.id === a.selectedOptionId; }) : undefined;
-      const isCorrect = option ? option.isCorrect : false;
-      if (isCorrect) correctCount++;
-      return { questionId: a.questionId, selectedOptionId: a.selectedOptionId, isCorrect: isCorrect };
-    });
-
-    const totalQuestions = quiz.questions.length;
-    const scorePercent = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
-    const passed = scorePercent >= quiz.passingScorePercent;
+    const { graded: gradedAnswers, scorePercent, passed } = gradeAnswers(quiz.questions, parsed.data.answers, quiz.passingScorePercent);
 
     const attempt = await prisma.$transaction(async function (tx) {
       const created = await tx.quizAttempt.create({
