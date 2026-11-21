@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../middleware/auth";
+import { percentComplete } from "../lib/progress";
 
 const router = Router();
 
@@ -158,7 +159,7 @@ async function instructorDashboard(userId: string) {
   const percentOf: Record<string, number> = {};
   enrollments.forEach(function (e) {
     const total = lessonCount[e.courseId] || 0;
-    percentOf[e.id] = total > 0 ? Math.round(((completedBy[e.id] || 0) / total) * 100) : 0;
+    percentOf[e.id] = percentComplete(completedBy[e.id] || 0, total);
   });
 
   const attempts = await prisma.quizAttempt.findMany({ where: { enrollmentId: { in: enrollmentIds } }, select: { passed: true } });

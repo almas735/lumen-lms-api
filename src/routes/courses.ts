@@ -5,12 +5,11 @@ import { AppError } from "../middleware/errorHandler";
 import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth";
 import { verifyAccessToken } from "../lib/tokens";
 import { isValidUuid } from "../lib/validation";
+import { canManage } from "../lib/permissions";
+import { slugify } from "../lib/slug";
 
 const router = Router();
 
-function slugify(title: string): string {
-  return title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-}
 
 async function generateUniqueSlug(title: string): Promise<string> {
   const base = slugify(title) || "course";
@@ -31,7 +30,7 @@ async function getOwnedCourse(courseId: string, user: { id: string; role: string
   if (!course) {
     throw new AppError(404, "NOT_FOUND", "Course not found");
   }
-  if (course.instructorId !== user.id && user.role !== "ADMIN") {
+  if (!canManage(user, course.instructorId)) {
     throw new AppError(403, "FORBIDDEN", "You do not have permission to do this");
   }
   return course;

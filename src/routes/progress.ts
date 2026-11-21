@@ -4,7 +4,9 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth";
 import { isValidUuid } from "../lib/validation";
+import { canManage } from "../lib/permissions";
 import { notifyEnrollment, notifyCourseCompleted } from "../lib/notify";
+import { percentComplete } from "../lib/progress";
 
 const router = Router();
 
@@ -118,7 +120,7 @@ router.get("/courses/:idOrSlug/outline", requireAuth, async (req: AuthedRequest,
       throw new AppError(404, "NOT_FOUND", "Course not found");
     }
 
-    const isOwner = course.instructorId === req.user!.id || req.user!.role === "ADMIN";
+    const isOwner = canManage(req.user!, course.instructorId);
 
     const modules = await prisma.module.findMany({
       where: { courseId: course.id },
@@ -252,7 +254,7 @@ router.get("/courses/:id/roster", requireAuth, async (req: AuthedRequest, res, n
     if (!course) {
       throw new AppError(404, "NOT_FOUND", "Course not found");
     }
-    if (course.instructorId !== req.user!.id && req.user!.role !== "ADMIN") {
+    if (!canManage(req.user!, course.instructorId)) {
       throw new AppError(403, "FORBIDDEN", "You do not have permission to do this");
     }
 
@@ -276,7 +278,7 @@ router.get("/courses/:id/roster", requireAuth, async (req: AuthedRequest, res, n
         studentName: e.student.fullName,
         studentEmail: e.student.email,
         status: e.status,
-        progressPercent: totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0,
+        progressPercent: percentComplete(completedCount, totalLessons),
         lastActiveAt: lastActivity ? lastActivity.lastViewedAt : null,
         enrolledAt: e.enrolledAt,
       });
