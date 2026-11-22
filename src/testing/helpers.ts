@@ -33,6 +33,8 @@ interface CourseOptions {
   status?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   lessons?: number;
   publishedAt?: Date;
+  title?: string;
+  level?: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
 }
 
 export async function makeCourse(instructorId: string, options: CourseOptions = {}) {
@@ -40,11 +42,11 @@ export async function makeCourse(instructorId: string, options: CourseOptions = 
   const status = options.status || "PUBLISHED";
   const course = await prisma.course.create({
     data: {
-      title: "Course " + id,
+      title: options.title || "Course " + id,
       slug: "course-" + id,
       summary: "summary",
       description: "description",
-      level: "BEGINNER",
+      level: options.level || "BEGINNER",
       status: status,
       publishedAt: status === "PUBLISHED" ? options.publishedAt || new Date() : null,
       instructorId: instructorId,
