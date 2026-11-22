@@ -155,7 +155,7 @@ router.get("/courses/:slug", async (req, res, next) => {
       if (token) {
         try {
           const payload = verifyAccessToken(token);
-          if (payload.userId === course.instructorId || payload.role === "ADMIN") {
+          if (canManage({ id: payload.userId, role: payload.role }, course.instructorId)) {
             allowed = true;
           }
         } catch (e) {
