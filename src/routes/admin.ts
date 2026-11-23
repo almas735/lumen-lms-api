@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth";
+import { isValidUuid } from "../lib/validation";
 
 const router = Router();
 
@@ -31,6 +32,9 @@ const roleUpdateSchema = z.object({ role: z.enum(["STUDENT", "INSTRUCTOR", "ADMI
 
 router.patch("/users/:id/role", requireAuth, requireRole("ADMIN"), async (req: AuthedRequest, res, next) => {
   try {
+    if (!isValidUuid(String(req.params.id))) {
+      throw new AppError(400, "INVALID_ID", "That user ID is not valid");
+    }
     if (String(req.params.id) === req.user!.id) {
       throw new AppError(400, "CANNOT_CHANGE_OWN_ROLE", "You cannot change your own role");
     }
@@ -53,6 +57,9 @@ router.patch("/users/:id/role", requireAuth, requireRole("ADMIN"), async (req: A
 
 router.delete("/users/:id", requireAuth, requireRole("ADMIN"), async (req, res, next) => {
   try {
+    if (!isValidUuid(String(req.params.id))) {
+      throw new AppError(400, "INVALID_ID", "That user ID is not valid");
+    }
     const target = await prisma.user.findFirst({ where: { id: String(req.params.id), deletedAt: null } });
     if (!target) {
       throw new AppError(404, "NOT_FOUND", "User not found");

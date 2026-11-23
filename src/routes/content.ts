@@ -5,6 +5,7 @@ import { AppError } from "../middleware/errorHandler";
 import { requireAuth, AuthedRequest } from "../middleware/auth";
 import { isValidUuid } from "../lib/validation";
 import { canManage } from "../lib/permissions";
+import { isSameSet } from "../lib/ordering";
 import { notifyNewLesson } from "../lib/notify";
 
 const router = Router();
@@ -92,6 +93,10 @@ router.put("/courses/:courseId/modules/order", requireAuth, async (req: AuthedRe
     const parsed = orderSchema.safeParse(req.body);
     if (!parsed.success) {
       throw new AppError(400, "VALIDATION_ERROR", "orderedIds is required");
+    }
+    const existing = await prisma.module.findMany({ where: { courseId: course.id }, select: { id: true } });
+    if (!isSameSet(existing.map(function (m) { return m.id; }), parsed.data.orderedIds)) {
+      throw new AppError(400, "INVALID_ORDER", "orderedIds must list every module of this course exactly once");
     }
     const updates = parsed.data.orderedIds.map(function (id, index) {
       return prisma.module.update({ where: { id: id, courseId: course.id }, data: { position: index + 1 } });
@@ -245,6 +250,10 @@ router.put("/modules/:moduleId/lessons/order", requireAuth, async (req: AuthedRe
     const parsed = orderSchema.safeParse(req.body);
     if (!parsed.success) {
       throw new AppError(400, "VALIDATION_ERROR", "orderedIds is required");
+    }
+    const existing = await prisma.lesson.findMany({ where: { moduleId: mod.id }, select: { id: true } });
+    if (!isSameSet(existing.map(function (l) { return l.id; }), parsed.data.orderedIds)) {
+      throw new AppError(400, "INVALID_ORDER", "orderedIds must list every lesson of this module exactly once");
     }
     const updates = parsed.data.orderedIds.map(function (id, index) {
       return prisma.lesson.update({ where: { id: id, moduleId: mod.id }, data: { position: index + 1 } });
