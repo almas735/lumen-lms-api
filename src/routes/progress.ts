@@ -215,6 +215,7 @@ router.post("/lessons/:id/progress", requireAuth, requireRole("STUDENT"), async 
       update: {
         status: newStatus,
         completedAt: parsed.data.completed ? new Date() : null,
+        lastViewedAt: new Date(),
       },
     });
 
@@ -270,7 +271,7 @@ router.get("/courses/:id/roster", requireAuth, async (req: AuthedRequest, res, n
     for (const e of enrollments) {
       const completedCount = await prisma.lessonProgress.count({ where: { enrollmentId: e.id, status: "COMPLETED" } });
       const lastActivity = await prisma.lessonProgress.findFirst({
-        where: { enrollmentId: e.id },
+        where: { enrollmentId: e.id, lastViewedAt: { not: null } },
         orderBy: { lastViewedAt: "desc" },
       });
       data.push({

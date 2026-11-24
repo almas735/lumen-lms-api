@@ -162,7 +162,7 @@ router.post("/quizzes/:quizId/attempts", requireAuth, requireRole("STUDENT"), as
         await tx.lessonProgress.upsert({
           where: { enrollmentId_lessonId: { enrollmentId: enrollment.id, lessonId: quiz.lessonId } },
           create: { enrollmentId: enrollment.id, lessonId: quiz.lessonId, status: "COMPLETED", completedAt: new Date(), lastViewedAt: new Date() },
-          update: { status: "COMPLETED", completedAt: new Date() },
+          update: { status: "COMPLETED", completedAt: new Date(), lastViewedAt: new Date() },
         });
       }
       return created;
