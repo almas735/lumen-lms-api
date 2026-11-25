@@ -1,4 +1,5 @@
 # Lumen LMS API
+[![CI](https://github.com/almas735/lumen-lms-api/actions/workflows/ci.yml/badge.svg)](https://github.com/almas735/lumen-lms-api/actions/workflows/ci.yml)
 
 Express + TypeScript + Prisma + PostgreSQL.
 
